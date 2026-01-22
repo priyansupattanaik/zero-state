@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from "react";
+// Change 1: Removed 'React' from import
+import { useEffect, useState } from "react";
 import { EncryptionService } from "./core/crypto/EncryptionService";
-import { BinaryProtocol, BitchatPacket } from "./core/protocol/BinaryProtocol";
+// Change 2: Separated 'BitchatPacket' as a type import
+import { BinaryProtocol } from "./core/protocol/BinaryProtocol";
+import type { BitchatPacket } from "./core/protocol/BinaryProtocol";
 import { PacketType } from "./core/protocol/PacketTypes";
 import { Buffer } from "buffer";
 
@@ -9,6 +12,7 @@ import { Buffer } from "buffer";
 
 function App() {
   const [logs, setLogs] = useState<string[]>([]);
+  // ... rest of the code remains exactly the same ...
   const [cryptoService] = useState(new EncryptionService());
 
   const addLog = (msg: string) => setLogs((prev) => [...prev, `> ${msg}`]);

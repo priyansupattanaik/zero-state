@@ -2,17 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: "/zero-state/", // <--- IMPORTANT: Add this line! Must match your Repo name.
+  base: "/zero-state/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
       buffer: "buffer",
+      process: "process/browser", // Add this
     },
   },
   define: {
-    global: {},
+    global: "window", // Change this from {} to 'window' to fix simple-peer issues
+    "process.env": {},
   },
 });
