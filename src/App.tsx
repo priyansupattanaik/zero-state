@@ -23,6 +23,7 @@ interface LogEntry {
 }
 
 function App() {
+  // --- STATE & REFS (Logic Unchanged) ---
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isReady, setIsReady] = useState(false);
@@ -39,11 +40,13 @@ function App() {
   const peerMap = useRef<{ [curveKey: string]: string }>({});
   const audioRecorderRef = useRef<AudioRecorder>(new AudioRecorder());
 
+  // --- SCROLLING ---
   const scrollToBottom = () => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   useEffect(scrollToBottom, [logs]);
 
+  // --- LOGGING HELPERS ---
   const addSystemLog = (msg: string) => {
     setLogs((prev) => [
       ...prev,
@@ -79,10 +82,11 @@ function App() {
     ]);
   };
 
+  // --- KERNEL BOOTSTRAP ---
   useEffect(() => {
     const initKernel = async () => {
       if (nostrRef.current) return;
-      addSystemLog("Booting Zero State [v1.6 - Stable]...");
+      addSystemLog("Booting Zero State [Neo-UI v2.0]...");
 
       let privKey = await storageRef.current.loadIdentity();
       if (!privKey) {
@@ -102,8 +106,8 @@ function App() {
     cryptoRef.current = new EncryptionService(privKey);
     const myCurveKey = cryptoRef.current.getPublicKey();
     setMyPubKey(myCurveKey);
-    addSystemLog(`Public ID: ${myCurveKey.substring(0, 8)}...`);
 
+    // Load History
     const history = await storageRef.current.getRecentMessages();
     if (logs.length === 1) {
       [...history].reverse().forEach((msg) => {
@@ -120,6 +124,7 @@ function App() {
       });
     }
 
+    // Start Network
     const nostr = new NostrSignaling(privKey, myCurveKey);
     nostrRef.current = nostr;
 
@@ -172,75 +177,56 @@ function App() {
     });
 
     await nostr.connect("zero-state-v1-global");
-    addSystemLog("Uplink Established (GLOBAL).");
     setIsReady(true);
   };
 
+  // --- COMMAND PROCESSOR ---
   const processCommand = async (cmd: string, args: string[]) => {
     switch (cmd) {
       case "/join":
         if (args.length < 1) {
-          addSystemLog("Usage: /join <room_name>");
+          addSystemLog("Usage: /join <room>");
           return true;
         }
         const topic = `zero-state-v1-${args[0]}`;
         await nostrRef.current?.connect(topic);
         setCurrentHash(args[0].toUpperCase());
-        addSystemLog(`>> JOINED CHANNEL: ${args[0].toUpperCase()}`);
+        addSystemLog(`>> JOINED: ${args[0].toUpperCase()}`);
         return true;
-
       case "/key":
         if (!cryptoRef.current) return true;
-        const pk = cryptoRef.current.getPrivateKey();
-        addSystemLog(`>> PRIVATE KEY (DO NOT SHARE):`);
-        addSystemLog(pk);
+        addSystemLog(`PRIVATE KEY: ${cryptoRef.current.getPrivateKey()}`);
         return true;
-
       case "/login":
         if (args.length < 1) {
-          addSystemLog("Usage: /login <private_key_hex>");
+          addSystemLog("Usage: /login <key>");
           return true;
         }
         const newKey = args[0];
         try {
-          if (newKey.length !== 64) throw new Error("Invalid Key Length");
-          // Ensure we close current DB before overwriting identity
+          if (newKey.length !== 64) throw new Error("Invalid Key");
           await storageRef.current.nuke();
           const newStorage = new StorageService();
           await newStorage.saveIdentity(newKey);
-          addSystemLog(">> Identity Updated. Reloading...");
-          setTimeout(() => window.location.reload(), 500);
+          window.location.reload();
         } catch (e) {
-          addSystemLog("Error: Invalid Key.");
+          addSystemLog("Invalid Key");
         }
         return true;
-
       case "/nuke":
-        addSystemLog(">> INITIATING ZERO STATE PROTOCOL...");
-        try {
-          // FIX: Use safe nuke method that closes connection first
-          await storageRef.current.nuke();
-          localStorage.clear();
-          addSystemLog(">> SYSTEM WIPED. RELOADING...");
-          setTimeout(() => window.location.reload(), 1000);
-        } catch (e: any) {
-          addSystemLog(">> Wipe Error: " + e.message);
-          // Force reload fallback
-          setTimeout(() => window.location.reload(), 2000);
-        }
+        await storageRef.current.nuke();
+        localStorage.clear();
+        window.location.reload();
         return true;
-
       case "/help":
-        addSystemLog(
-          "COMMANDS: /join <room>, /key, /login <key>, /nuke, /dm <id> <msg>",
-        );
+        addSystemLog("/join <room>, /key, /login, /nuke, /dm <id>");
         return true;
-
       default:
         return false;
     }
   };
 
+  // --- ACTION HANDLERS ---
   const handleSend = async () => {
     if (!inputValue.trim() || !nostrRef.current || !cryptoRef.current) return;
     const rawInput = inputValue;
@@ -273,6 +259,7 @@ function App() {
         addSystemLog("Error: Route unknown.");
         return;
       }
+
       const packet: BitchatPacket = {
         type: PacketType.TEXT_MESSAGE,
         packetId: Math.floor(Math.random() * 1000000),
@@ -307,9 +294,8 @@ function App() {
   };
 
   const handleGPS = () => {
-    addSystemLog("Triangulating Position...");
-    if (!navigator.geolocation) return addSystemLog("GPS Not Supported");
-
+    addSystemLog("Scanning GPS...");
+    if (!navigator.geolocation) return addSystemLog("No GPS Hardware");
     navigator.geolocation.getCurrentPosition((pos) => {
       const hash = GeohashUtils.encode(
         pos.coords.latitude,
@@ -320,7 +306,7 @@ function App() {
       setCurrentHash(hash);
       nostrRef.current?.connect(newTopic);
       setLogs([]);
-      addSystemLog(`>> FREQUENCY SHIFT: ${hash.toUpperCase()}`);
+      addSystemLog(`>> FREQUENCY: ${hash.toUpperCase()}`);
     });
   };
 
@@ -331,12 +317,10 @@ function App() {
     } else {
       if (secureModeUser === senderPub) {
         setSecureModeUser(null);
-        addSystemLog(">> Secure Channel: DISCONNECTED.");
+        addSystemLog(">> CHANNEL UNLOCKED.");
       } else {
         setSecureModeUser(senderPub);
-        addSystemLog(
-          `>> Secure Channel: LOCKED to ${senderPub.substring(0, 6)}...`,
-        );
+        addSystemLog(`>> SECURE CHANNEL LOCKED.`);
         setInputValue("");
       }
     }
@@ -346,10 +330,9 @@ function App() {
     if (!e.target.files || !e.target.files[0]) return;
     const file = e.target.files[0];
     try {
-      addSystemLog("Compressing Image...");
+      addSystemLog("Processing Image...");
       const base64Image = await ImageUtils.processImage(file);
       await sendMediaPacket(base64Image, PacketType.IMAGE_MESSAGE, "image");
-      addSystemLog("Image Sent.");
     } catch (err) {
       addSystemLog("Image Error: " + err);
     }
@@ -361,7 +344,6 @@ function App() {
     try {
       await audioRecorderRef.current.start();
       setIsRecording(true);
-      addSystemLog("Recording...");
     } catch (e) {
       addSystemLog("Mic Error.");
     }
@@ -372,10 +354,8 @@ function App() {
     setIsRecording(false);
     try {
       const base64Audio = await audioRecorderRef.current.stop();
-      if (base64Audio) {
+      if (base64Audio)
         await sendMediaPacket(base64Audio, PacketType.AUDIO_MESSAGE, "audio");
-        addSystemLog("Voice Note Sent.");
-      }
     } catch (e) {
       addSystemLog("Recording Failed.");
     }
@@ -424,213 +404,309 @@ function App() {
     await storageRef.current.saveMessage(packet, "out", myPubKey);
   };
 
+  // --- NEO-TERMINAL UI RENDERER ---
   const renderLogEntry = (log: LogEntry) => {
-    if (log.type === "system")
-      return <div style={{ color: "#888" }}>&gt; {log.content}</div>;
-
-    const isMe = log.sender === myPubKey;
-    const displayId = isMe ? "YOU" : log.sender.substring(0, 6);
-    let prefixColor = "#00ff00";
-    let prefixText = `[${displayId}]`;
-
-    if (log.type === "secret") {
-      prefixColor = "#ff00ff";
-      if (isMe && log.receiver)
-        prefixText = `[SECRET TO ${log.receiver.substring(0, 6)}]`;
-      else prefixText = `[SECRET FROM ${log.sender.substring(0, 6)}]`;
-    } else if (log.type === "self") prefixText = `[YOU]`;
-
-    return (
-      <div style={{ marginBottom: "8px", lineHeight: "1.4" }}>
-        <span style={{ color: "#444", marginRight: "8px", fontSize: "12px" }}>
-          {new Date(log.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-        <span
-          onClick={() => !isMe && handleUsernameClick(log.sender)}
+    if (log.type === "system") {
+      return (
+        <div
           style={{
-            color: prefixColor,
-            fontWeight: "bold",
-            cursor: "pointer",
-            marginRight: "8px",
-            textDecoration: "underline",
+            textAlign: "center",
+            color: "#666",
+            fontSize: "12px",
+            margin: "10px 0",
+            borderBottom: "1px dashed #222",
+            paddingBottom: "5px",
           }}
         >
-          {prefixText}
-        </span>
+          {log.content}
+        </div>
+      );
+    }
 
-        {log.contentType === "image" ? (
-          <div style={{ marginTop: "5px" }}>
+    const isMe = log.sender === myPubKey;
+    const isSecret = log.type === "secret";
+
+    // Dynamic Styles based on type
+    const blockStyle: React.CSSProperties = {
+      backgroundColor: isSecret ? "#1a051a" : "#111",
+      border: `1px solid ${isSecret ? "#ff00ff" : "#333"}`,
+      borderRadius: isMe ? "8px 8px 0 8px" : "8px 8px 8px 0",
+      padding: "10px",
+      maxWidth: "85%",
+      alignSelf: isMe ? "flex-end" : "flex-start",
+      animation: "fadeIn 0.2s ease-out",
+      boxShadow: isSecret ? "0 0 5px rgba(255, 0, 255, 0.2)" : "none",
+    };
+
+    const displayId = isMe ? "YOU" : log.sender.substring(0, 6);
+    const timeStr = new Date(log.timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return (
+      <div style={blockStyle}>
+        {/* Header: ID + Time */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "5px",
+            fontSize: "11px",
+            color: "#666",
+          }}
+        >
+          <span
+            onClick={() => !isMe && handleUsernameClick(log.sender)}
+            style={{
+              color: isSecret ? "#ff00ff" : isMe ? "#00ff00" : "#00ccff",
+              fontWeight: "bold",
+              cursor: isMe ? "default" : "pointer",
+              textDecoration: isMe ? "none" : "underline",
+            }}
+          >
+            {isSecret ? "🔒 " : ""}
+            {displayId}
+          </span>
+          <span>{timeStr}</span>
+        </div>
+
+        {/* Content */}
+        <div
+          style={{
+            color: "#e0e0e0",
+            wordBreak: "break-word",
+            fontSize: "14px",
+            lineHeight: "1.5",
+          }}
+        >
+          {log.contentType === "image" ? (
             <img
               src={`data:image/jpeg;base64,${log.content}`}
               style={{
-                maxWidth: "200px",
+                maxWidth: "100%",
                 borderRadius: "4px",
-                border: `1px solid ${prefixColor}`,
+                border: "1px solid #333",
               }}
             />
-          </div>
-        ) : log.contentType === "audio" ? (
-          <div style={{ marginTop: "5px" }}>
+          ) : log.contentType === "audio" ? (
             <audio
               controls
               src={`data:audio/webm;base64,${log.content}`}
-              style={{ height: "30px", maxWidth: "100%" }}
+              style={{ height: "32px", maxWidth: "100%" }}
             />
-          </div>
-        ) : (
-          <span style={{ color: "#fff" }}>: {log.content}</span>
-        )}
+          ) : (
+            log.content
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: "#0a0a0a",
-        color: "#e0e0e0",
-        height: "100vh",
-        fontFamily: "monospace",
-        display: "flex",
-        flexDirection: "column",
-        padding: "20px",
-      }}
-    >
+    <>
+      {/* Global Styles for Scrollbars & Animations */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+        body { margin: 0; background-color: #050505; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    `}</style>
+
       <div
         style={{
+          backgroundColor: "#050505",
+          color: "#e0e0e0",
+          height: "100dvh", // Dynamic viewport height for mobile
+          fontFamily: "'Fira Code', monospace",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "10px",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <h1
+        {/* --- HEADER --- */}
+        <div
           style={{
-            margin: "0",
-            color: secureModeUser ? "#ff00ff" : "#00ff00",
-            fontSize: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "10px 15px",
+            borderBottom: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
+            backgroundColor: "#0a0a0a",
           }}
         >
-          ZERO // {secureModeUser ? "SECURE" : currentHash}
-        </h1>
-        <button
-          onClick={handleGPS}
-          style={{
-            background: "#333",
-            color: "#00ff00",
-            border: "1px solid #00ff00",
-            padding: "5px 10px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-          title="Switch to Nearby Frequency"
-        >
-          GPS SCAN
-        </button>
-      </div>
+          <div>
+            <div
+              style={{
+                fontSize: "16px",
+                fontWeight: "bold",
+                color: secureModeUser ? "#ff00ff" : "#00ff00",
+              }}
+            >
+              ZERO STATE
+            </div>
+            <div style={{ fontSize: "10px", color: "#666" }}>
+              {secureModeUser ? "SECURE UPLINK ACTIVE" : `FREQ: ${currentHash}`}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleGPS}
+              style={{
+                background: "transparent",
+                color: "#00ff00",
+                border: "1px solid #00ff00",
+                padding: "4px 8px",
+                fontSize: "10px",
+                cursor: "pointer",
+                borderRadius: "4px",
+              }}
+            >
+              GPS
+            </button>
+          </div>
+        </div>
 
-      <div
-        style={{
-          flex: 1,
-          border: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
-          padding: "15px",
-          overflowY: "auto",
-          marginBottom: "20px",
-          backgroundColor: "#000",
-        }}
-      >
-        {logs.map((log) => (
-          <div key={log.id}>{renderLogEntry(log)}</div>
-        ))}
-        <div ref={logsEndRef} />
-      </div>
-
-      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={handleFileSelect}
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!isReady}
-          style={{
-            background: "#333",
-            color: "#fff",
-            border: "1px solid #555",
-            padding: "12px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          IMG
-        </button>
-        <button
-          onMouseDown={startRecording}
-          onMouseUp={stopRecordingAndSend}
-          onTouchStart={startRecording}
-          onTouchEnd={stopRecordingAndSend}
-          disabled={!isReady}
-          style={{
-            background: isRecording ? "#ff0000" : "#333",
-            color: "#fff",
-            border: "1px solid #555",
-            padding: "12px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            minWidth: "50px",
-          }}
-        >
-          {isRecording ? "REC" : "MIC"}
-        </button>
-
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          disabled={!isReady}
-          placeholder={
-            isReady
-              ? secureModeUser
-                ? `[SECURE] Message...`
-                : "Message or /help"
-              : "Initializing..."
-          }
+        {/* --- CHAT AREA --- */}
+        <div
           style={{
             flex: 1,
-            background: "#111",
-            border: `1px solid ${secureModeUser ? "#ff00ff" : "#444"}`,
-            color: secureModeUser ? "#ffccff" : "#fff",
-            padding: "12px",
-            fontFamily: "monospace",
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!isReady}
-          style={{
-            background: isReady
-              ? secureModeUser
-                ? "#ff00ff"
-                : "#00ff00"
-              : "#333",
-            color: "#000",
-            border: "none",
-            padding: "10px 30px",
-            fontWeight: "bold",
-            cursor: "pointer",
+            padding: "15px",
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
           }}
         >
-          SEND
-        </button>
+          {logs.map((log) => (
+            <div key={log.id}>{renderLogEntry(log)}</div>
+          ))}
+          <div ref={logsEndRef} />
+        </div>
+
+        {/* --- CONTROL DECK (INPUT) --- */}
+        <div
+          style={{
+            padding: "10px",
+            backgroundColor: "#0a0a0a",
+            borderTop: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handleFileSelect}
+          />
+
+          {/* IMG Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!isReady}
+            style={{
+              background: "#1a1a1a",
+              color: "#ccc",
+              border: "1px solid #333",
+              borderRadius: "4px",
+              width: "44px",
+              height: "44px", // Touch friendly
+              cursor: "pointer",
+              fontSize: "18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Send Image"
+          >
+            📷
+          </button>
+
+          {/* MIC Button */}
+          <button
+            onMouseDown={startRecording}
+            onMouseUp={stopRecordingAndSend}
+            onTouchStart={startRecording}
+            onTouchEnd={stopRecordingAndSend}
+            disabled={!isReady}
+            style={{
+              background: isRecording ? "#990000" : "#1a1a1a",
+              color: isRecording ? "#fff" : "#ccc",
+              border: `1px solid ${isRecording ? "#ff0000" : "#333"}`,
+              borderRadius: "4px",
+              width: "44px",
+              height: "44px",
+              cursor: "pointer",
+              fontSize: "18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Hold to Record"
+          >
+            {isRecording ? "●" : "🎤"}
+          </button>
+
+          {/* Text Input */}
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            disabled={!isReady}
+            placeholder={
+              secureModeUser
+                ? `Message ${secureModeUser.substring(0, 4)}...`
+                : "Message..."
+            }
+            style={{
+              flex: 1,
+              height: "44px",
+              background: "#050505",
+              border: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
+              borderRadius: "4px",
+              color: secureModeUser ? "#ffccff" : "#fff",
+              padding: "0 12px",
+              fontFamily: "'Fira Code', monospace",
+              fontSize: "16px", // Prevents iOS zoom
+            }}
+          />
+
+          {/* SEND Button */}
+          <button
+            onClick={handleSend}
+            disabled={!isReady}
+            style={{
+              background: isReady
+                ? secureModeUser
+                  ? "#ff00ff"
+                  : "#00ff00"
+                : "#333",
+              color: "#000",
+              border: "none",
+              borderRadius: "4px",
+              width: "44px",
+              height: "44px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ➤
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
