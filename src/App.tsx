@@ -9,7 +9,8 @@ import { NostrSignaling } from "./core/network/NostrSignaling";
 import { ImageUtils } from "./core/media/ImageUtils";
 import { AudioRecorder } from "./core/media/AudioRecorder";
 import { GeohashUtils } from "./core/geo/GeohashUtils";
-import { Camera, Mic, Send, MapPin, Lock, Square, Radio } from "lucide-react";
+// FIX: Removed unused 'Lock' and 'Radio' imports
+import { Camera, Mic, Send, MapPin, Square } from "lucide-react";
 import "./App.css";
 
 (window as any).Buffer = Buffer;
@@ -60,7 +61,6 @@ function App() {
     ]);
   };
 
-  // FIXED: Now accepts an optional timestamp
   const addChatLog = (
     sender: string,
     content: string,
@@ -86,9 +86,9 @@ function App() {
   useEffect(() => {
     const initKernel = async () => {
       if (nostrRef.current) return;
-      addSystemLog("Booting Zero State [v2.2 - Retention Patch]...");
+      addSystemLog("Booting Zero State [v2.3 - Stable]...");
 
-      // 1. Prune old messages (older than 24 hours)
+      // Prune old messages (older than 24 hours)
       await storageRef.current.pruneMessages(86400);
 
       let privKey = await storageRef.current.loadIdentity();
@@ -118,7 +118,7 @@ function App() {
         if (msg.type === PacketType.IMAGE_MESSAGE) cType = "image";
         if (msg.type === PacketType.AUDIO_MESSAGE) cType = "audio";
 
-        // FIXED: Pass the original timestamp (convert sec to ms)
+        // Use original timestamp
         addChatLog(
           isOut ? myCurveKey : msg.sender,
           msg.payload.toString(),
@@ -152,7 +152,6 @@ function App() {
           if (packet.type === PacketType.AUDIO_MESSAGE) cType = "audio";
 
           if (sourceKey !== myCurveKey || isSecret) {
-            // Live messages use Date.now() implicitly or packet timestamp
             addChatLog(
               sourceKey,
               packet.payload.toString(),
