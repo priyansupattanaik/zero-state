@@ -9,7 +9,8 @@ import { NostrSignaling } from "./core/network/NostrSignaling";
 import { ImageUtils } from "./core/media/ImageUtils";
 import { AudioRecorder } from "./core/media/AudioRecorder";
 import { GeohashUtils } from "./core/geo/GeohashUtils";
-import "./App.css"; // Import the new styles
+import { Camera, Mic, Send, MapPin, Lock, Square, Radio } from "lucide-react";
+import "./App.css";
 
 (window as any).Buffer = Buffer;
 
@@ -24,7 +25,6 @@ interface LogEntry {
 }
 
 function App() {
-  // --- STATE & REFS (Logic Unchanged) ---
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isReady, setIsReady] = useState(false);
@@ -41,13 +41,11 @@ function App() {
   const peerMap = useRef<{ [curveKey: string]: string }>({});
   const audioRecorderRef = useRef<AudioRecorder>(new AudioRecorder());
 
-  // --- SCROLLING ---
   const scrollToBottom = () => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   useEffect(scrollToBottom, [logs]);
 
-  // --- LOGGING HELPERS ---
   const addSystemLog = (msg: string) => {
     setLogs((prev) => [
       ...prev,
@@ -62,18 +60,20 @@ function App() {
     ]);
   };
 
+  // FIXED: Now accepts an optional timestamp
   const addChatLog = (
     sender: string,
     content: string,
     type: "public" | "secret" | "self",
     contentType: "text" | "image" | "audio" = "text",
     receiver?: string,
+    timestamp: number = Date.now(),
   ) => {
     setLogs((prev) => [
       ...prev,
       {
         id: Math.random().toString(36).substring(7),
-        timestamp: Date.now(),
+        timestamp: timestamp,
         sender: sender,
         receiver: receiver,
         content: content,
@@ -83,11 +83,13 @@ function App() {
     ]);
   };
 
-  // --- KERNEL BOOTSTRAP ---
   useEffect(() => {
     const initKernel = async () => {
       if (nostrRef.current) return;
-      addSystemLog("Booting Zero State [Neo-UI v2.0]...");
+      addSystemLog("Booting Zero State [v2.2 - Retention Patch]...");
+
+      // 1. Prune old messages (older than 24 hours)
+      await storageRef.current.pruneMessages(86400);
 
       let privKey = await storageRef.current.loadIdentity();
       if (!privKey) {
@@ -115,11 +117,15 @@ function App() {
         let cType: "text" | "image" | "audio" = "text";
         if (msg.type === PacketType.IMAGE_MESSAGE) cType = "image";
         if (msg.type === PacketType.AUDIO_MESSAGE) cType = "audio";
+
+        // FIXED: Pass the original timestamp (convert sec to ms)
         addChatLog(
           isOut ? myCurveKey : msg.sender,
           msg.payload.toString(),
           isOut ? "self" : "public",
           cType,
+          undefined,
+          msg.timestamp * 1000,
         );
       });
     }
@@ -146,6 +152,7 @@ function App() {
           if (packet.type === PacketType.AUDIO_MESSAGE) cType = "audio";
 
           if (sourceKey !== myCurveKey || isSecret) {
+            // Live messages use Date.now() implicitly or packet timestamp
             addChatLog(
               sourceKey,
               packet.payload.toString(),
@@ -418,7 +425,6 @@ function App() {
       minute: "2-digit",
     });
 
-    // Helper classes for styling
     const alignmentClass = isMe ? "self" : "other";
     const modeClass = isSecret ? "secure" : "public";
 
@@ -482,6 +488,7 @@ function App() {
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={handleGPS} className="gps-btn">
+            <MapPin size={12} style={{ marginRight: "4px" }} />
             GPS
           </button>
         </div>
@@ -507,7 +514,7 @@ function App() {
           className="icon-btn"
           title="Send Image"
         >
-          📷
+          <Camera size={24} />
         </button>
 
         <button
@@ -519,7 +526,11 @@ function App() {
           className={`icon-btn ${isRecording ? "recording" : ""}`}
           title="Hold to Record"
         >
-          {isRecording ? "●" : "🎤"}
+          {isRecording ? (
+            <Square size={20} fill="currentColor" />
+          ) : (
+            <Mic size={24} />
+          )}
         </button>
 
         <input
@@ -541,7 +552,7 @@ function App() {
           disabled={!isReady}
           className="icon-btn send"
         >
-          ➤
+          <Send size={20} strokeWidth={2.5} />
         </button>
       </div>
     </div>

@@ -74,10 +74,34 @@ export class StorageService {
     return messages;
   }
 
-  // --- NUKE PROTOCOL (Fix for locking issue) ---
+  /**
+   * Delete messages older than the specified seconds
+   * Default: 24 hours (86400 seconds)
+   */
+  async pruneMessages(maxAgeSeconds: number = 86400) {
+    const db = await this.dbPromise;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cutoff = nowSec - maxAgeSeconds;
+
+    const tx = db.transaction("messages", "readwrite");
+    const index = tx.store.index("by-timestamp");
+
+    // Iterate over messages older than cutoff and delete them
+    let cursor = await index.openCursor(IDBKeyRange.upperBound(cutoff));
+
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+
+    await tx.done;
+    console.log(`[Storage] Pruned messages older than ${maxAgeSeconds}s`);
+  }
+
+  // --- NUKE PROTOCOL ---
   async nuke() {
     const db = await this.dbPromise;
-    db.close(); // IMPORTANT: Close connection first
-    await deleteDB("zero-state-db"); // Now delete safely
+    db.close();
+    await deleteDB("zero-state-db");
   }
 }
