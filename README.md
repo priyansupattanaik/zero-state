@@ -14,43 +14,41 @@
 
 **Zero State** is a sovereign communication tool designed to operate entirely in the browser without reliance on central servers, databases, or user accounts.
 
-Inspired by projects like Bitchat and the principles of the Nostr protocol, Zero State creates an ephemeral, encrypted mesh network. It allows users to communicate securely with peers globally or discover local peers using geohashed location channels, all while retaining complete control over their identity and data.
+It uses the **Nostr protocol** as a decentralized signaling layer to create an ephemeral, encrypted mesh network. Users can broadcast globally or discover local peers using **geohashed location channels**, all while retaining complete control over their identity and data.
 
-It is "infrastructure-agnostic," using public Nostr relays merely as dumb signal pipes, while all logic, encryption, and data storage happen client-side on the user's device.
-
-### Key Objectives
+### Core Philosophy
 
 - **Zero Infrastructure:** No backend servers to maintain or pay for.
-- **Zero Knowledge:** The transport layer (relays) cannot read messages.
-- **Sovereign Identity:** Your private key is your account. You own it.
-- **Offline-First:** Data is persisted locally and works harmoniously with intermittent connections.
+- **Zero Knowledge:** The transport layer (relays) cannot read private messages.
+- **Sovereign Identity:** Your private key is your account. You own it completely.
+- **Ephemeral by Design:** Messages are auto-pruned locally after 24 hours.
 
 ## ✨ Features
 
-- **🌐 Decentralized Signaling:** Uses the Nostr protocol mesh to route packets via multiple redundant relays.
-- **🔒 End-to-End Encryption (E2EE):** All private direct messages and media are secured using Curve25519 public-key cryptography (via TweetNaCl).
-- **📍 Location-Aware Channels:** Automatically generate proximity-based chat rooms using GPS geohashing to find nearby peers without revealing exact coordinates.
-- **📸 Rich Media Support:** Send automatically compressed images and captured voice notes securely over the mesh.
-- **💾 Local Persistence:** Chat history and identity are stored securely in the browser's IndexedDB, ensuring data survives reloads.
-- **💬 Private & Public Modes:** Seamlessly switch between broadcasting to a channel or locking into a secure, encrypted DM channel with a specific peer.
-- **📱 Neo-Terminal UI:** A responsive, mobile-first interface styled for quick data entry and readability in the field.
+- **🌐 Decentralized Signaling:** Routes packets via the Nostr relay mesh (Damus, Primal, etc.).
+- **🔒 End-to-End Encryption (E2EE):** Direct messages and media are secured using **Curve25519** (TweetNaCl).
+- **📍 Location-Aware Channels:** GPS Geohashing places you in a local "room" (approx. 5km radius) to find nearby peers without revealing exact coords.
+- **📸 Rich Media:** Send compressed images and captured voice notes securely over the mesh.
+- **🧹 Auto-Retention:** Built-in "Garbage Collector" automatically deletes local messages older than 24 hours to preserve privacy and storage.
+- **💾 Offline-First:** Identity and history are persisted in **IndexedDB**, ensuring data survives reloads until pruned.
+- **📱 Neo-Terminal UI:** A responsive, mobile-first interface with distinct "Public" (Green) and "Secure" (Magenta) visual themes.
 
-## 🛠️ Architecture Overview
+## 🛠️ Architecture
 
-Zero State is built on a layered architecture running entirely in the client browser:
+Zero State runs entirely client-side:
 
-1.  **UI Layer (React/Vite):** Handles user interaction, media capture, and rendering the "Neo-Terminal" interface.
-2.  **Application Kernel (App.tsx):** Manages state, coordinates services, and handles command parsing (`/join`, `/nuke`, etc.).
-3.  **Crypto Service (TweetNaCl/WebCrypto):** Manages the user's Curve25519 identity keypair and performs encryption/decryption operations.
-4.  **Protocol Layer (BinaryProtocol):** Serializes rich data (text, images, audio metadata) into compact binary packets to maximize relay compatibility.
-5.  **Signaling Layer (Nostr-Tools):** wraps binary packets into Nostr events and broadcasts them to the relay mesh.
-6.  **Storage Layer (IDB):** Persists encrypted identity keys and message history into the browser's IndexedDB.
+1.  **UI Layer (React/Vite):** "Neo-Terminal" interface handling user input and media capture.
+2.  **Application Kernel:** Manages state, command parsing, and service coordination.
+3.  **Crypto Service:** Handles Curve25519 keypair management and encryption/decryption.
+4.  **Protocol Layer:** Serializes data into compact binary packets (`Buffer`) for efficient transport.
+5.  **Signaling Layer:** Wraps packets in Nostr events (Kind 1) and broadcasts to public relays.
+6.  **Storage Layer:** IDB wrapper that persists encrypted data and handles the 24h auto-pruning logic.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js (v18+ recommended)
+- Node.js (v18+)
 - npm
 
 ### Installation
@@ -74,50 +72,40 @@ Zero State is built on a layered architecture running entirely in the client bro
     npm run dev
     ```
 
-4.  Open your browser to `http://localhost:5173`.
+4.  Open `http://localhost:5173`.
 
 ## 🕹️ Usage & Commands
 
-Upon first load, a unique cryptographic identity is generated for you and saved locally.
+### Interface Guide
 
-### Basic Interface
-
-- **Public Broadcast:** Type and hit send. Everyone on your current frequency sees this.
-- **Secure DM:** Click a user's ID (e.g., `[a1b2c3]`) in the chat log. The UI turns purple, indicating you are locked into an encrypted channel with that user.
-- **GPS Scan:** Click the `GPS` button to automatically switch your frequency to your local geohash neighborhood.
-- **Media:** Use the Camera icon for images and hold the Mic icon for voice notes.
+- **Public Mode (Green):** Messages are broadcast to everyone on your current Frequency (Global or Local).
+- **Secure Mode (Magenta):** Click a User ID (e.g., `[8F2A...]`) to lock into an E2EE channel. The UI changes color to indicate encryption is active.
+- **GPS Button:** Switches your Frequency to your local Geohash (e.g., `FREQ: DP3W2`).
 
 ### Terminal Commands
 
-Type these into the message input box:
+Type these into the message input:
 
-| Command                | Description                                                                                                   |
-| :--------------------- | :------------------------------------------------------------------------------------------------------------ |
-| `/join <room_name>`    | Manually switch to a specific custom frequency topic (e.g., `/join berlin-ops`).                              |
-| `/key`                 | reveal your full Private Key for backup purposes. **Do not share this.**                                      |
-| `/login <private_key>` | Restore a previously backed-up identity so you can use it on a new device.                                    |
-| `/nuke`                | **Emergency Wipe.** Instantly deletes local databases and identity, then reloads to generate a fresh persona. |
-| `/help`                | List available commands.                                                                                      |
+| Command        | Description                                                                                             |
+| :------------- | :------------------------------------------------------------------------------------------------------ |
+| `/join <room>` | Manually switch to a custom topic (e.g., `/join cyberpunk`).                                            |
+| `/key`         | Reveal your Private Key for backup. **Keep this secret.**                                               |
+| `/login <key>` | Restore an identity from a private key.                                                                 |
+| `/nuke`        | **Emergency Wipe.** Instantly deletes all local data, keys, and history, then reloads a fresh identity. |
+| `/help`        | List available commands.                                                                                |
 
 ## 📦 Tech Stack
 
-- [React](https://reactjs.org/) - UI Framework
-- [Vite](https://vitejs.dev/) - Build Tool
-- [TypeScript](https://www.typescriptlang.org/) - Type Safety
-- [Nostr-Tools](https://github.com/nbd-wtf/nostr-tools) - Decentralized Signaling Protocol
-- [TweetNaCl.js](https://tweetnacl.js.org/) - High-level Cryptography (Curve25519/Salsa20)
-- [idb](https://github.com/jakearchibald/idb) - IndexedDB Promise Wrapper for persistence
-- [Lucide React](https://lucide.dev/guide/packages/lucide-react) - Vector Icons
+- [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Nostr-Tools](https://github.com/nbd-wtf/nostr-tools) (Signaling)
+- [TweetNaCl.js](https://tweetnacl.js.org/) (Cryptography)
+- [idb](https://github.com/jakearchibald/idb) (Storage)
+- [Lucide React](https://lucide.dev/) (Icons)
 
 ## 🤝 Contributing
 
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
