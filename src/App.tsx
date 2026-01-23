@@ -9,6 +9,7 @@ import { NostrSignaling } from "./core/network/NostrSignaling";
 import { ImageUtils } from "./core/media/ImageUtils";
 import { AudioRecorder } from "./core/media/AudioRecorder";
 import { GeohashUtils } from "./core/geo/GeohashUtils";
+import "./App.css"; // Import the new styles
 
 (window as any).Buffer = Buffer;
 
@@ -107,7 +108,6 @@ function App() {
     const myCurveKey = cryptoRef.current.getPublicKey();
     setMyPubKey(myCurveKey);
 
-    // Load History
     const history = await storageRef.current.getRecentMessages();
     if (logs.length === 1) {
       [...history].reverse().forEach((msg) => {
@@ -124,7 +124,6 @@ function App() {
       });
     }
 
-    // Start Network
     const nostr = new NostrSignaling(privKey, myCurveKey);
     nostrRef.current = nostr;
 
@@ -180,7 +179,6 @@ function App() {
     setIsReady(true);
   };
 
-  // --- COMMAND PROCESSOR ---
   const processCommand = async (cmd: string, args: string[]) => {
     switch (cmd) {
       case "/join":
@@ -226,7 +224,6 @@ function App() {
     }
   };
 
-  // --- ACTION HANDLERS ---
   const handleSend = async () => {
     if (!inputValue.trim() || !nostrRef.current || !cryptoRef.current) return;
     const rawInput = inputValue;
@@ -404,20 +401,10 @@ function App() {
     await storageRef.current.saveMessage(packet, "out", myPubKey);
   };
 
-  // --- NEO-TERMINAL UI RENDERER ---
   const renderLogEntry = (log: LogEntry) => {
     if (log.type === "system") {
       return (
-        <div
-          style={{
-            textAlign: "center",
-            color: "#666",
-            fontSize: "12px",
-            margin: "10px 0",
-            borderBottom: "1px dashed #222",
-            paddingBottom: "5px",
-          }}
-        >
+        <div key={log.id} className="system-log">
           {log.content}
         </div>
       );
@@ -425,44 +412,31 @@ function App() {
 
     const isMe = log.sender === myPubKey;
     const isSecret = log.type === "secret";
-
-    // Dynamic Styles based on type
-    const blockStyle: React.CSSProperties = {
-      backgroundColor: isSecret ? "#1a051a" : "#111",
-      border: `1px solid ${isSecret ? "#ff00ff" : "#333"}`,
-      borderRadius: isMe ? "8px 8px 0 8px" : "8px 8px 8px 0",
-      padding: "10px",
-      maxWidth: "85%",
-      alignSelf: isMe ? "flex-end" : "flex-start",
-      animation: "fadeIn 0.2s ease-out",
-      boxShadow: isSecret ? "0 0 5px rgba(255, 0, 255, 0.2)" : "none",
-    };
-
     const displayId = isMe ? "YOU" : log.sender.substring(0, 6);
     const timeStr = new Date(log.timestamp).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
 
+    // Helper classes for styling
+    const alignmentClass = isMe ? "self" : "other";
+    const modeClass = isSecret ? "secure" : "public";
+
     return (
-      <div style={blockStyle}>
-        {/* Header: ID + Time */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "5px",
-            fontSize: "11px",
-            color: "#666",
-          }}
-        >
+      <div
+        key={log.id}
+        className={`message-block ${alignmentClass} ${modeClass}`}
+      >
+        <div className="message-header">
           <span
             onClick={() => !isMe && handleUsernameClick(log.sender)}
+            className={`user-id ${alignmentClass}`}
             style={{
-              color: isSecret ? "#ff00ff" : isMe ? "#00ff00" : "#00ccff",
-              fontWeight: "bold",
-              cursor: isMe ? "default" : "pointer",
-              textDecoration: isMe ? "none" : "underline",
+              color: isSecret
+                ? "#ff00ff"
+                : isMe
+                  ? "var(--accent-color)"
+                  : "#00ccff",
             }}
           >
             {isSecret ? "🔒 " : ""}
@@ -471,15 +445,7 @@ function App() {
           <span>{timeStr}</span>
         </div>
 
-        {/* Content */}
-        <div
-          style={{
-            color: "#e0e0e0",
-            wordBreak: "break-word",
-            fontSize: "14px",
-            lineHeight: "1.5",
-          }}
-        >
+        <div className="message-content">
           {log.contentType === "image" ? (
             <img
               src={`data:image/jpeg;base64,${log.content}`}
@@ -504,209 +470,81 @@ function App() {
   };
 
   return (
-    <>
-      {/* Global Styles for Scrollbars & Animations */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
-        body { margin: 0; background-color: #050505; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    `}</style>
-
-      <div
-        style={{
-          backgroundColor: "#050505",
-          color: "#e0e0e0",
-          height: "100dvh", // Dynamic viewport height for mobile
-          fontFamily: "'Fira Code', monospace",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* --- HEADER --- */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "10px 15px",
-            borderBottom: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
-            backgroundColor: "#0a0a0a",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "16px",
-                fontWeight: "bold",
-                color: secureModeUser ? "#ff00ff" : "#00ff00",
-              }}
-            >
-              ZERO STATE
-            </div>
-            <div style={{ fontSize: "10px", color: "#666" }}>
-              {secureModeUser ? "SECURE UPLINK ACTIVE" : `FREQ: ${currentHash}`}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button
-              onClick={handleGPS}
-              style={{
-                background: "transparent",
-                color: "#00ff00",
-                border: "1px solid #00ff00",
-                padding: "4px 8px",
-                fontSize: "10px",
-                cursor: "pointer",
-                borderRadius: "4px",
-              }}
-            >
-              GPS
-            </button>
+    <div
+      className={`app-container ${secureModeUser ? "secure-mode" : "public-mode"}`}
+    >
+      <div className="header">
+        <div>
+          <div className="header-title">ZERO STATE</div>
+          <div className="header-subtitle">
+            {secureModeUser ? "SECURE UPLINK ACTIVE" : `FREQ: ${currentHash}`}
           </div>
         </div>
-
-        {/* --- CHAT AREA --- */}
-        <div
-          style={{
-            flex: 1,
-            padding: "15px",
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-          }}
-        >
-          {logs.map((log) => (
-            <div key={log.id}>{renderLogEntry(log)}</div>
-          ))}
-          <div ref={logsEndRef} />
-        </div>
-
-        {/* --- CONTROL DECK (INPUT) --- */}
-        <div
-          style={{
-            padding: "10px",
-            backgroundColor: "#0a0a0a",
-            borderTop: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          {/* Hidden File Input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handleFileSelect}
-          />
-
-          {/* IMG Button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!isReady}
-            style={{
-              background: "#1a1a1a",
-              color: "#ccc",
-              border: "1px solid #333",
-              borderRadius: "4px",
-              width: "44px",
-              height: "44px", // Touch friendly
-              cursor: "pointer",
-              fontSize: "18px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            title="Send Image"
-          >
-            📷
-          </button>
-
-          {/* MIC Button */}
-          <button
-            onMouseDown={startRecording}
-            onMouseUp={stopRecordingAndSend}
-            onTouchStart={startRecording}
-            onTouchEnd={stopRecordingAndSend}
-            disabled={!isReady}
-            style={{
-              background: isRecording ? "#990000" : "#1a1a1a",
-              color: isRecording ? "#fff" : "#ccc",
-              border: `1px solid ${isRecording ? "#ff0000" : "#333"}`,
-              borderRadius: "4px",
-              width: "44px",
-              height: "44px",
-              cursor: "pointer",
-              fontSize: "18px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            title="Hold to Record"
-          >
-            {isRecording ? "●" : "🎤"}
-          </button>
-
-          {/* Text Input */}
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            disabled={!isReady}
-            placeholder={
-              secureModeUser
-                ? `Message ${secureModeUser.substring(0, 4)}...`
-                : "Message..."
-            }
-            style={{
-              flex: 1,
-              height: "44px",
-              background: "#050505",
-              border: `1px solid ${secureModeUser ? "#ff00ff" : "#333"}`,
-              borderRadius: "4px",
-              color: secureModeUser ? "#ffccff" : "#fff",
-              padding: "0 12px",
-              fontFamily: "'Fira Code', monospace",
-              fontSize: "16px", // Prevents iOS zoom
-            }}
-          />
-
-          {/* SEND Button */}
-          <button
-            onClick={handleSend}
-            disabled={!isReady}
-            style={{
-              background: isReady
-                ? secureModeUser
-                  ? "#ff00ff"
-                  : "#00ff00"
-                : "#333",
-              color: "#000",
-              border: "none",
-              borderRadius: "4px",
-              width: "44px",
-              height: "44px",
-              cursor: "pointer",
-              fontWeight: "bold",
-              fontSize: "18px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ➤
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={handleGPS} className="gps-btn">
+            GPS
           </button>
         </div>
       </div>
-    </>
+
+      <div className="chat-area">
+        {logs.map((log) => renderLogEntry(log))}
+        <div ref={logsEndRef} />
+      </div>
+
+      <div className="control-deck">
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={handleFileSelect}
+        />
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!isReady}
+          className="icon-btn"
+          title="Send Image"
+        >
+          📷
+        </button>
+
+        <button
+          onMouseDown={startRecording}
+          onMouseUp={stopRecordingAndSend}
+          onTouchStart={startRecording}
+          onTouchEnd={stopRecordingAndSend}
+          disabled={!isReady}
+          className={`icon-btn ${isRecording ? "recording" : ""}`}
+          title="Hold to Record"
+        >
+          {isRecording ? "●" : "🎤"}
+        </button>
+
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          disabled={!isReady}
+          placeholder={
+            secureModeUser
+              ? `Message ${secureModeUser.substring(0, 4)}...`
+              : "Message..."
+          }
+          className="chat-input"
+        />
+
+        <button
+          onClick={handleSend}
+          disabled={!isReady}
+          className="icon-btn send"
+        >
+          ➤
+        </button>
+      </div>
+    </div>
   );
 }
 
